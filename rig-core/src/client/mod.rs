@@ -170,6 +170,7 @@ pub use crate::client::transcription::TranscriptionClient;
 mod tests {
     use crate::client::ProviderClient;
     use crate::completion::{Completion, CompletionRequest, ToolDefinition};
+    #[cfg(feature = "image")]
     use crate::image_generation::ImageGenerationRequest;
     use crate::message::AssistantContent;
     use crate::providers::{
@@ -258,7 +259,10 @@ mod tests {
                 env_variable: "HUGGINGFACE_API_KEY",
                 completion_model: Some(huggingface::PHI_4),
                 transcription_model: Some(huggingface::WHISPER_SMALL),
+                #[cfg(feature = "image")]
                 image_generation_model: Some(huggingface::STABLE_DIFFUSION_3),
+                #[cfg(not(feature = "image"))]
+                image_generation_model: None,
                 ..Default::default()
             },
             ClientConfig {
@@ -268,8 +272,14 @@ mod tests {
                 completion_model: Some(openai::GPT_4O),
                 embeddings_model: Some(openai::TEXT_EMBEDDING_ADA_002),
                 transcription_model: Some(openai::WHISPER_1),
+                #[cfg(feature = "image")]
                 image_generation_model: Some(openai::DALL_E_2),
+                #[cfg(not(feature = "image"))]
+                image_generation_model: None,
+                #[cfg(feature = "audio")]
                 audio_generation_model: Some((openai::TTS_1, "onyx")),
+                #[cfg(not(feature = "audio"))]
+                audio_generation_model: None,
             },
             ClientConfig {
                 name: "OpenRouter",
@@ -331,8 +341,14 @@ mod tests {
                 factory: Box::new(hyperbolic::Client::from_env_boxed),
                 env_variable: "HYPERBOLIC_API_KEY",
                 completion_model: Some(hyperbolic::LLAMA_3_1_8B),
+                #[cfg(feature = "image")]
                 image_generation_model: Some(hyperbolic::SD1_5),
+                #[cfg(not(feature = "image"))]
+                image_generation_model: None,
+                #[cfg(feature = "audio")]
                 audio_generation_model: Some(("EN", "EN-US")),
+                #[cfg(not(feature = "audio"))]
+                audio_generation_model: None,
                 ..Default::default()
             },
             ClientConfig {
@@ -621,6 +637,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "audio")]
     async fn test_audio_generation_client(config: &ClientConfig) {
         let client = config.factory();
 
@@ -659,6 +676,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[cfg(feature = "audio")]
     async fn test_audio_generation() {
         for p in providers().into_iter().filter(ClientConfig::is_env_var_set) {
             test_audio_generation_client(&p).await;
@@ -717,7 +735,10 @@ mod tests {
                 config.name,
                 "AsImageGeneration",
                 "image_generation_model",
+                #[cfg(feature = "image")]
                 client.as_image_generation(),
+                #[cfg(not(feature = "image"))]
+                None::<()>,
                 config.image_generation_model,
             );
 
@@ -725,7 +746,10 @@ mod tests {
                 config.name,
                 "AsAudioGeneration",
                 "audio_generation_model",
+                #[cfg(feature = "audio")]
                 client.as_audio_generation(),
+                #[cfg(not(feature = "audio"))]
+                None::<()>,
                 config.audio_generation_model,
             )
         }
@@ -772,6 +796,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "image")]
     async fn test_image_generation_client(config: &ClientConfig) {
         let client = config.factory();
         let Some(client) = client.as_image_generation() else {
@@ -809,6 +834,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[cfg(feature = "image")]
     async fn test_image_generation() {
         for config in providers().into_iter().filter(ClientConfig::is_env_var_set) {
             test_image_generation_client(&config).await;

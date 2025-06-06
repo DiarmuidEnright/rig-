@@ -519,6 +519,50 @@ impl CompletionModel {
             default_max_tokens: calculate_max_tokens(model),
         }
     }
+
+    /// Format documents according to Anthropic's XML specification.
+    /// Returns a message containing documents formatted with <document>, <document_content>, and <source> tags
+    /// as recommended by Anthropic's documentation.
+    fn anthropic_normalized_documents(&self, completion_request: &completion::CompletionRequest) -> Option<crate::message::Message> {
+        if completion_request.documents.is_empty() {
+            return None;
+        }
+
+        let messages = completion_request
+            .documents
+            .iter()
+            .map(|doc| {
+                // Format document according to Anthropic's recommended XML structure
+                let formatted_content = if doc.additional_props.is_empty() {
+                    format!(
+                        "<document>\n<source>{}</source>\n<document_content>\n{}\n</document_content>\n</document>",
+                        doc.id, doc.text
+                    )
+                } else {
+                    // Include metadata in source tag
+                    let mut sorted_props = doc.additional_props.iter().collect::<Vec<_>>();
+                    sorted_props.sort_by(|a, b| a.0.cmp(b.0));
+                    let metadata = sorted_props
+                        .iter()
+                        .map(|(k, v)| format!("{k}: {v:?}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let source_info = format!("{} ({})", doc.id, metadata);
+                    
+                    format!(
+                        "<document>\n<source>{}</source>\n<document_content>\n{}\n</document_content>\n</document>",
+                        source_info, doc.text
+                    )
+                };
+
+                crate::message::UserContent::text(formatted_content)
+            })
+            .collect::<Vec<_>>();
+
+        Some(crate::message::Message::User {
+            content: crate::OneOrMany::many(messages).expect("There will be atleast one document"),
+        })
+    }
 }
 
 /// Anthropic requires a `max_tokens` parameter to be set, which is dependent on the model. If not
@@ -580,7 +624,7 @@ impl completion::CompletionModel for CompletionModel {
         };
 
         let mut full_history = vec![];
-        if let Some(docs) = completion_request.normalized_documents() {
+        if let Some(docs) = self.anthropic_normalized_documents(&completion_request) {
             full_history.push(docs);
         }
         full_history.extend(completion_request.chat_history);
